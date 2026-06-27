@@ -133,6 +133,18 @@
                     app:layout_gravity="fill"
                     app:layout_row="1" />
 
+                <app.aaps.core.ui.elements.SingleClickButton
+                    android:id="@+id/btn_external_basal"
+                    style="@style/GrayButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="8dp"
+                    android:text="Ввести внешний базальный инсулин (Тожео/и др.)"
+                    android:textSize="11sp"
+                    app:layout_column="1"
+                    app:layout_columnWeight="1"
+                    app:layout_gravity="fill"
+                    app:layout_row="1" />
             </androidx.gridlayout.widget.GridLayout>
 
         </com.google.android.material.card.MaterialCardView>

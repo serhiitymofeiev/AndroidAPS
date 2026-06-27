@@ -189,7 +189,36 @@ class ActionsFragment : DaggerFragment() {
         binding.siteRotation.setOnClickListener {
             uiInteraction.runSiteRotationDialog(childFragmentManager)
         }
+        // Назначаем обработчик на нашу новую кнопку
+        binding.btnExternalBasal.setOnClickListener {
+            val dialog = ExternalBasalDialog { dose, insulinType ->
+                // Получаем активный профиль используя уже внедренный ProfileStore
+                val currentProfile = profileStore.activeProfile()
+                if (currentProfile != null) {
+                    val result = ExternalBasalManager.createUntetheredProfileSwitch(
+                        dose, insulinType, currentProfile.getData().toString()
+                    )
 
+                    if (result != null) {
+                        // Асинхронно записываем данные в базу
+                        // Если у вас в ActionsFragment используется persistenceLayer,
+                        // замените appDatabase.xxxxDao() на persistenceLayer
+                        Thread {
+                            appDatabase.profileSwitchDao().insert(result.first)
+                            appDatabase.therapyEventDao().insert(result.second)
+
+                            // Обновляем UI (при необходимости)
+                            activity?.runOnUiThread {
+                                Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", Toast.LENGTH_SHORT).show()
+                            }
+                        }.start()
+                    }
+                } else {
+                    Toast.makeText(context, "Профиль не загружен", Toast.LENGTH_SHORT).show()
+                }
+            }
+            dialog.show(childFragmentManager, "ExternalBasalDialog")
+        }
         preferences.put(BooleanNonKey.ObjectivesActionsUsed, true)
     }
 
