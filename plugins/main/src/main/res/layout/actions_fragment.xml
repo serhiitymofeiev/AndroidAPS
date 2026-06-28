@@ -13,6 +13,36 @@
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
+
+        <!-- ======================================================= -->
+        <!-- НАША КНОПКА (ТЕПЕРЬ ОНА БУДЕТ В САМОМ ВЕРХУ ЭКРАНА!)    -->
+        <!-- ======================================================= -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_external_basal"
+            style="@style/Widget.MaterialComponents.CardView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginBottom="4dp"
+            app:cardCornerRadius="8dp"
+            app:contentPadding="8dp"
+            app:cardElevation="4dp"
+            app:cardUseCompatPadding="false">
+
+            <app.aaps.core.ui.elements.SingleClickButton
+                android:id="@+id/btn_external_basal"
+                style="@style/GrayButton"
+                android:layout_width="match_parent"
+                android:layout_height="50dp"
+                android:textColor="?attr/colorPrimary"
+                android:text="Учет длинного инсулина (Тожео / Лантус)"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </com.google.android.material.card.MaterialCardView>
+        <!-- ======================================================= -->
+
         <!-- СТАРЫЙ КОНТЕЙНЕР (Скины AAPS будут менять и сортировать только его) -->
         <LinearLayout
             android:id="@+id/buttons_layout"
@@ -405,21 +435,7 @@
                         app:layout_gravity="fill"
                         app:layout_row="7" />
 
-                    <!-- ВОТ НАША КНОПКА В ПУСТОЙ ЯЧЕЙКЕ СПРАВА ОТ TDD -->
-                    <app.aaps.core.ui.elements.SingleClickButton
-                        android:id="@+id/btn_external_basal"
-                        style="@style/GrayButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:drawableTop="@drawable/ic_cp_note"
-                        android:paddingStart="0dp"
-                        android:paddingEnd="0dp"
-                        android:text="Учет длинного\nинсулина"
-                        android:textSize="11sp"
-                        app:layout_column="1"
-                        app:layout_columnWeight="1"
-                        app:layout_gravity="fill"
-                        app:layout_row="7" />
+
 
 
                 </androidx.gridlayout.widget.GridLayout>
