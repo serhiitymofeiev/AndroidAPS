@@ -54,6 +54,9 @@ import io.reactivex.rxjava3.disposables.CompositeDisposable
 import io.reactivex.rxjava3.kotlin.plusAssign
 import javax.inject.Inject
 
+import app.aaps.plugins.main.general.actions.ExternalBasalDialog
+import app.aaps.plugins.main.general.actions.ExternalBasalManager
+
 class ActionsFragment : DaggerFragment() {
 
     @Inject lateinit var aapsLogger: AAPSLogger
@@ -190,10 +193,10 @@ class ActionsFragment : DaggerFragment() {
         }
 
         // --- НАША КНОПКА ВНЕШНЕГО БАЗАЛА ---
+        // Назначаем обработчик на нашу новую кнопку
         binding.btnExternalBasal.setOnClickListener {
             val dialog = ExternalBasalDialog { dose, insulinType ->
-
-                // В AAPS 3.2 мы должны брать профиль через persistenceLayer или profileFunction
+                // Получаем активный профиль
                 val currentProfile = profileFunction.getProfile()
                 if (currentProfile != null) {
                     val result = ExternalBasalManager.createUntetheredProfileSwitch(
@@ -202,25 +205,28 @@ class ActionsFragment : DaggerFragment() {
 
                     if (result != null) {
                         Thread {
-                            // Сохраняем через persistenceLayer (интерфейс БД AAPS 3.2)
-                            persistenceLayer.createOrUpdateProfileSwitch(result.first)
-                            persistenceLayer.createOrUpdateTherapyEvent(result.second)
+                            try {
+                                // Записываем смену профиля через persistenceLayer
+                                persistenceLayer.insert(result.first)
+                                persistenceLayer.insert(result.second)
 
-                            // Оповещаем алгоритм, что профиль изменился
-                            rxBus.post(EventProfileSwitchChanged())
+                                // Уведомляем алгоритм (oref1) о том, что профиль сменился
+                                rxBus.post(app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged())
 
-                            activity?.runOnUiThread {
-                                Toast.makeText(context, "Профиль ${insulinType.displayName} активирован", Toast.LENGTH_SHORT).show()
+                                activity?.runOnUiThread {
+                                    Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
                             }
                         }.start()
                     }
                 } else {
-                    Toast.makeText(context, "Ошибка: Профиль не загружен", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Профиль не загружен", Toast.LENGTH_SHORT).show()
                 }
             }
             dialog.show(childFragmentManager, "ExternalBasalDialog")
         }
-        // -------------------------------------
 
         preferences.put(BooleanNonKey.ObjectivesActionsUsed, true)
     }
