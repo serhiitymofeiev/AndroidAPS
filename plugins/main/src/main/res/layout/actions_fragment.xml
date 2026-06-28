@@ -133,20 +133,6 @@
                     app:layout_gravity="fill"
                     app:layout_row="1" />
 
-                <app.aaps.core.ui.elements.SingleClickButton
-                    android:id="@+id/btn_external_basal"
-                    style="@style/GrayButton"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:paddingStart="0dp"
-                    android:paddingEnd="0dp"
-                    android:text="Учесть внешний базал"
-                    android:textSize="11sp"
-                    app:layout_column="0"
-                    app:layout_columnSpan="2"
-                    app:layout_columnWeight="2"
-                    app:layout_gravity="fill"
-                    app:layout_row="2" />
             </androidx.gridlayout.widget.GridLayout>
 
         </com.google.android.material.card.MaterialCardView>
@@ -402,6 +388,46 @@
 
             </androidx.gridlayout.widget.GridLayout>
 
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_external_basal"
+            style="@style/Widget.MaterialComponents.CardView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="4dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp"
+            app:cardCornerRadius="8dp"
+            app:contentPadding="8dp"
+            app:cardElevation="4dp"
+            app:cardUseCompatPadding="false">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingStart="7dp"
+                    android:paddingEnd="7dp"
+                    android:layout_marginBottom="8dp"
+                    android:text="Untethered (Внешний базал)"
+                    android:textStyle="bold"
+                    android:textColor="?attr/colorPrimary" />
+
+                <app.aaps.core.ui.elements.SingleClickButton
+                    android:id="@+id/btn_external_basal"
+                    style="@style/GrayButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp"
+                    android:text="Ввести дозу Тожео / длинного инсулина"
+                    android:textSize="13sp" />
+
+            </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>
