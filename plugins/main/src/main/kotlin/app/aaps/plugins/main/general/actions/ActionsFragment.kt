@@ -192,22 +192,8 @@ class ActionsFragment : DaggerFragment() {
             uiInteraction.runSiteRotationDialog(childFragmentManager)
         }
 
-        // =================================================================
-        // ПРОГРАММНОЕ СОЗДАНИЕ КНОПКИ ВНЕШНЕГО БАЗАЛА (Гарантия отображения)
-        // =================================================================
-        val btnExternalBasal = app.aaps.core.ui.elements.SingleClickButton(requireContext(), null, app.aaps.core.ui.R.attr.customBtnStyle).apply {
-            text = "Внешний базал (Тожео, Лантус...)"
-            textSize = 14f
-            layoutParams = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                // Большой отступ снизу (100), чтобы кнопка точно не перекрылась меню навигации
-                setMargins(24, 40, 24, 100)
-            }
-        }
-
-        btnExternalBasal.setOnClickListener {
+        // --- НАШ ОБРАБОТЧИК КНОПКИ ВНЕШНЕГО БАЗАЛА ---
+        binding.btnExternalBasal.setOnClickListener {
             val dialog = app.aaps.plugins.main.general.actions.ExternalBasalDialog { dose, insulinType ->
                 val currentProfile = profileFunction.getProfile()
                 if (currentProfile != null) {
@@ -237,10 +223,6 @@ class ActionsFragment : DaggerFragment() {
             }
             dialog.show(childFragmentManager, "ExternalBasalDialog")
         }
-
-        // Принудительно вставляем кнопку в конец списка на экране
-        binding.buttonsLayout.addView(btnExternalBasal)
-        // =================================================================
 
         preferences.put(BooleanNonKey.ObjectivesActionsUsed, true)
     }
