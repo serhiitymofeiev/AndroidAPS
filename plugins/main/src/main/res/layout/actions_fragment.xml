@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -134,7 +135,6 @@
                     app:layout_row="1" />
 
             </androidx.gridlayout.widget.GridLayout>
-
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
@@ -307,9 +307,7 @@
                     app:layout_columnWeight="1"
                     app:layout_gravity="fill"
                     app:layout_row="5" />
-
             </androidx.gridlayout.widget.GridLayout>
-
         </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.card.MaterialCardView
@@ -385,11 +383,10 @@
                     app:layout_columnWeight="1"
                     app:layout_gravity="fill"
                     app:layout_row="7" />
-
             </androidx.gridlayout.widget.GridLayout>
-
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- Наша карточка Untethered. Она находится ВНЕ GridLayout, поэтому AAPS ее не спрячет! -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_external_basal"
             style="@style/Widget.MaterialComponents.CardView"
@@ -397,11 +394,11 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:layout_marginEnd="4dp"
-            android:layout_marginTop="16dp"
+            android:layout_marginTop="8dp"
             android:layout_marginBottom="24dp"
             app:cardCornerRadius="8dp"
-            app:contentPadding="8dp"
-            app:cardElevation="4dp"
+            app:contentPadding="12dp"
+            app:cardElevation="2dp"
             app:cardUseCompatPadding="false">
 
             <LinearLayout
@@ -412,10 +409,8 @@
                 <TextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:paddingStart="7dp"
-                    android:paddingEnd="7dp"
                     android:layout_marginBottom="8dp"
-                    android:text="Untethered (Внешний базал)"
+                    android:text="Учет длинного инсулина"
                     android:textStyle="bold"
                     android:textColor="?attr/colorPrimary" />
 
@@ -423,13 +418,11 @@
                     android:id="@+id/btn_external_basal"
                     style="@style/GrayButton"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp"
-                    android:text="Ввести дозу Тожео / длинного инсулина"
+                    android:layout_height="wrap_content"
+                    android:text="Добавить дозу (Тожео, Лантус и др.)"
                     android:textSize="13sp" />
-
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
     </LinearLayout>
-
 </androidx.core.widget.NestedScrollView>

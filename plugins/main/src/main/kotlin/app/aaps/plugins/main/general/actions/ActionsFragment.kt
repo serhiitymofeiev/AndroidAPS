@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
+import android.widget.Toast
 import androidx.core.content.ContextCompat
 import app.aaps.core.data.model.RM
 import app.aaps.core.data.ue.Action
@@ -31,11 +32,11 @@ import app.aaps.core.interfaces.rx.events.EventExtendedBolusChange
 import app.aaps.core.interfaces.rx.events.EventInitializationChanged
 import app.aaps.core.interfaces.rx.events.EventTempBasalChange
 import app.aaps.core.interfaces.rx.events.EventTherapyEventChange
+import app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged // <-- Обязательный импорт
 import app.aaps.core.interfaces.ui.UiInteraction
 import app.aaps.core.interfaces.utils.DateUtil
 import app.aaps.core.interfaces.utils.DecimalFormatter
 import app.aaps.core.interfaces.utils.fabric.FabricPrivacy
-import app.aaps.core.keys.BooleanKey
 import app.aaps.core.keys.BooleanNonKey
 import app.aaps.core.keys.interfaces.Preferences
 import app.aaps.core.objects.extensions.toStringMedium
@@ -83,8 +84,6 @@ class ActionsFragment : DaggerFragment() {
     private val pumpCustomButtons = ArrayList<SingleClickButton>()
 
     private var _binding: ActionsFragmentBinding? = null
-
-    // This property is only valid between onCreateView and onDestroyView.
     private val binding get() = _binding!!
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View =
@@ -189,36 +188,40 @@ class ActionsFragment : DaggerFragment() {
         binding.siteRotation.setOnClickListener {
             uiInteraction.runSiteRotationDialog(childFragmentManager)
         }
-        // Назначаем обработчик на нашу новую кнопку
+
+        // --- НАША КНОПКА ВНЕШНЕГО БАЗАЛА ---
         binding.btnExternalBasal.setOnClickListener {
             val dialog = ExternalBasalDialog { dose, insulinType ->
-                // Получаем активный профиль используя уже внедренный ProfileStore
-                val currentProfile = profileStore.activeProfile()
+
+                // В AAPS 3.2 мы должны брать профиль через persistenceLayer или profileFunction
+                val currentProfile = profileFunction.getProfile()
                 if (currentProfile != null) {
                     val result = ExternalBasalManager.createUntetheredProfileSwitch(
                         dose, insulinType, currentProfile.getData().toString()
                     )
 
                     if (result != null) {
-                        // Асинхронно записываем данные в базу
-                        // Если у вас в ActionsFragment используется persistenceLayer,
-                        // замените appDatabase.xxxxDao() на persistenceLayer
                         Thread {
-                            appDatabase.profileSwitchDao().insert(result.first)
-                            appDatabase.therapyEventDao().insert(result.second)
+                            // Сохраняем через persistenceLayer (интерфейс БД AAPS 3.2)
+                            persistenceLayer.createOrUpdateProfileSwitch(result.first)
+                            persistenceLayer.createOrUpdateTherapyEvent(result.second)
 
-                            // Обновляем UI (при необходимости)
+                            // Оповещаем алгоритм, что профиль изменился
+                            rxBus.post(EventProfileSwitchChanged())
+
                             activity?.runOnUiThread {
-                                Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Профиль ${insulinType.displayName} активирован", Toast.LENGTH_SHORT).show()
                             }
                         }.start()
                     }
                 } else {
-                    Toast.makeText(context, "Профиль не загружен", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Ошибка: Профиль не загружен", Toast.LENGTH_SHORT).show()
                 }
             }
             dialog.show(childFragmentManager, "ExternalBasalDialog")
         }
+        // -------------------------------------
+
         preferences.put(BooleanNonKey.ObjectivesActionsUsed, true)
     }
 
@@ -261,9 +264,12 @@ class ActionsFragment : DaggerFragment() {
 
     @Synchronized
     fun updateGui() {
-
         val profile = profileFunction.getProfile()
         val pump = activePlugin.activePump
+
+        // Делаем нашу кнопку и карточку всегда видимыми!
+        binding.cardExternalBasal.visibility = View.VISIBLE
+        binding.btnExternalBasal.visibility = View.VISIBLE
 
         binding.profileSwitch.visibility = (
             activePlugin.activeProfileSource.profile != null &&
@@ -311,8 +317,8 @@ class ActionsFragment : DaggerFragment() {
         binding.tddStats.visibility = pump.pumpDescription.supportsTDDs.toVisibility()
         val isPatchPump = pump.pumpDescription.isPatchPump
         binding.status.apply {
-            cannulaOrPatch.text = if (cannulaOrPatch.text.isEmpty()) "" else if (isPatchPump) rh.gs(R.string.patch_pump) else rh.gs(R.string.cannula)
-            val imageResource = if (isPatchPump) app.aaps.core.objects.R.drawable.ic_patch_pump_outline else R.drawable.ic_cp_age_cannula
+            cannulaOrPatch.text = if (cannulaOrPatch.text.isEmpty()) "" else if (isPatchPump) rh.gs(app.aaps.core.ui.R.string.patch_pump) else rh.gs(app.aaps.core.ui.R.string.cannula)
+            val imageResource = if (isPatchPump) app.aaps.core.objects.R.drawable.ic_patch_pump_outline else app.aaps.core.ui.R.drawable.ic_cp_age_cannula
             cannulaOrPatch.setCompoundDrawablesWithIntrinsicBounds(imageResource, 0, 0, 0)
             batteryLayout.visibility = (!isPatchPump || pump.pumpDescription.useHardwareLink).toVisibility()
 
@@ -322,7 +328,7 @@ class ActionsFragment : DaggerFragment() {
                     reservoirLevel, sensorAge, sensorLevel,
                     pbAge, pbLevel
                 )
-                sensorLevelLabel.text = if (activeBgSource.sensorBatteryLevel == -1) "" else rh.gs(R.string.level_label)
+                sensorLevelLabel.text = if (activeBgSource.sensorBatteryLevel == -1) "" else rh.gs(app.aaps.core.ui.R.string.level_label)
             } else {
                 statusLightHandler.updateStatusLights(cannulaAge, cannulaUsage, insulinAge, null, sensorAge, null, pbAge, null)
                 sensorLevelLabel.text = ""
@@ -331,7 +337,6 @@ class ActionsFragment : DaggerFragment() {
             }
         }
         checkPumpCustomActions()
-
     }
 
     private fun checkPumpCustomActions() {
@@ -349,7 +354,7 @@ class ActionsFragment : DaggerFragment() {
             val layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f
             )
-            layoutParams.setMargins(20, 8, 20, 8) // 10,3,10,3
+            layoutParams.setMargins(20, 8, 20, 8)
 
             btn.layoutParams = layoutParams
             btn.setOnClickListener { v ->
