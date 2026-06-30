@@ -183,45 +183,50 @@ class ActionsFragment : DaggerFragment() {
             uiInteraction.runCareDialog(childFragmentManager, UiInteraction.EventType.EXERCISE, app.aaps.core.ui.R.string.careportal_exercise)
         }
         binding.question.setOnClickListener {
-            uiInteraction.runCareDialog(childFragmentManager, UiInteraction.EventType.QUESTION, app.aaps.core.ui.R.string.careportal_question)
+        // --- ПЕРЕХВАТ КНОПКИ "ВОПРОС" ПОД ВНЕШНИЙ БАЗАЛ ---
+        binding.question.apply {
+            text = "Длинный\nинсулин" // Меняем текст на кнопке
+            // Меняем иконку вопроса на иконку шприца
+            setCompoundDrawablesWithIntrinsicBounds(0, app.aaps.core.ui.R.drawable.ic_bolus, 0, 0)
+            
+            setOnClickListener {
+                val dialog = ExternalBasalDialog { dose, insulinType ->
+                    val currentProfile = profileFunction.getProfile()
+                    if (currentProfile != null) {
+                        val result = ExternalBasalManager.createUntetheredProfileSwitch(
+                            dose, insulinType, currentProfile.getData().toString()
+                        )
+
+                        if (result != null) {
+                            Thread {
+                                try {
+                                    persistenceLayer.createOrUpdateProfileSwitch(result.first)
+                                    persistenceLayer.createOrUpdateTherapyEvent(result.second)
+
+                                    rxBus.post(app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged())
+
+                                    activity?.runOnUiThread {
+                                        android.widget.Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }.start()
+                        }
+                    } else {
+                        android.widget.Toast.makeText(context, "Профиль не загружен", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
+                dialog.show(childFragmentManager, "ExternalBasalDialog")
+            }
+        }
+        // ----------------------------------------------------
         }
         binding.announcement.setOnClickListener {
             uiInteraction.runCareDialog(childFragmentManager, UiInteraction.EventType.ANNOUNCEMENT, app.aaps.core.ui.R.string.careportal_announcement)
         }
         binding.siteRotation.setOnClickListener {
             uiInteraction.runSiteRotationDialog(childFragmentManager)
-        }
-
-        // --- НАШ ОБРАБОТЧИК КНОПКИ ВНЕШНЕГО БАЗАЛА ---
-        binding.btnExternalBasal.setOnClickListener {
-            val dialog = app.aaps.plugins.main.general.actions.ExternalBasalDialog { dose, insulinType ->
-                val currentProfile = profileFunction.getProfile()
-                if (currentProfile != null) {
-                    val result = app.aaps.plugins.main.general.actions.ExternalBasalManager.createUntetheredProfileSwitch(
-                        dose, insulinType, currentProfile.getData().toString()
-                    )
-
-                    if (result != null) {
-                        Thread {
-                            try {
-                                persistenceLayer.createOrUpdateProfileSwitch(result.first)
-                                persistenceLayer.createOrUpdateTherapyEvent(result.second)
-
-                                rxBus.post(app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged())
-
-                                activity?.runOnUiThread {
-                                    android.widget.Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", android.widget.Toast.LENGTH_SHORT).show()
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                        }.start()
-                    }
-                } else {
-                    android.widget.Toast.makeText(context, "Профиль не загружен", android.widget.Toast.LENGTH_SHORT).show()
-                }
-            }
-            dialog.show(childFragmentManager, "ExternalBasalDialog")
         }
 
         preferences.put(BooleanNonKey.ObjectivesActionsUsed, true)
