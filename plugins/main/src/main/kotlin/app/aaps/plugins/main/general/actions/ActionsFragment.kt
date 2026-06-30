@@ -32,7 +32,7 @@ import app.aaps.core.interfaces.rx.events.EventExtendedBolusChange
 import app.aaps.core.interfaces.rx.events.EventInitializationChanged
 import app.aaps.core.interfaces.rx.events.EventTempBasalChange
 import app.aaps.core.interfaces.rx.events.EventTherapyEventChange
-import app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged // <-- Обязательный импорт
+import app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged
 import app.aaps.core.interfaces.ui.UiInteraction
 import app.aaps.core.interfaces.utils.DateUtil
 import app.aaps.core.interfaces.utils.DecimalFormatter
@@ -53,9 +53,6 @@ import dagger.android.support.DaggerFragment
 import io.reactivex.rxjava3.disposables.CompositeDisposable
 import io.reactivex.rxjava3.kotlin.plusAssign
 import javax.inject.Inject
-
-import app.aaps.plugins.main.general.actions.ExternalBasalDialog
-import app.aaps.plugins.main.general.actions.ExternalBasalManager
 
 class ActionsFragment : DaggerFragment() {
 
@@ -121,9 +118,7 @@ class ActionsFragment : DaggerFragment() {
                 protectionCheck.queryProtection(activity, ProtectionCheck.Protection.BOLUS, UIRunnable {
                     OKDialog.showConfirmation(
                         activity, rh.gs(app.aaps.core.ui.R.string.extended_bolus), rh.gs(R.string.ebstopsloop),
-                        {
-                            uiInteraction.runExtendedBolusDialog(childFragmentManager)
-                        }, null
+                        { uiInteraction.runExtendedBolusDialog(childFragmentManager) }, null
                     )
                 })
             }
@@ -182,13 +177,20 @@ class ActionsFragment : DaggerFragment() {
         binding.exercise.setOnClickListener {
             uiInteraction.runCareDialog(childFragmentManager, UiInteraction.EventType.EXERCISE, app.aaps.core.ui.R.string.careportal_exercise)
         }
-        binding.question.setOnClickListener {
-        // --- ПЕРЕХВАТ КНОПКИ "ВОПРОС" ПОД ВНЕШНИЙ БАЗАЛ ---
+        binding.announcement.setOnClickListener {
+            uiInteraction.runCareDialog(childFragmentManager, UiInteraction.EventType.ANNOUNCEMENT, app.aaps.core.ui.R.string.careportal_announcement)
+        }
+        binding.siteRotation.setOnClickListener {
+            uiInteraction.runSiteRotationDialog(childFragmentManager)
+        }
+
+        // =========================================================================
+        // ПЕРЕХВАТ КНОПКИ "ВОПРОС" ПОД ФУНКЦИЮ УЧЕТА ДЛИННОГО ИНСУЛИНА
+        // =========================================================================
         binding.question.apply {
-            text = "Длинный\nинсулин" // Меняем текст на кнопке
-            // Меняем иконку вопроса на иконку шприца
+            text = "Длинный\nинсулин"
             setCompoundDrawablesWithIntrinsicBounds(0, app.aaps.core.ui.R.drawable.ic_bolus, 0, 0)
-            
+
             setOnClickListener {
                 val dialog = ExternalBasalDialog { dose, insulinType ->
                     val currentProfile = profileFunction.getProfile()
@@ -202,11 +204,10 @@ class ActionsFragment : DaggerFragment() {
                                 try {
                                     persistenceLayer.createOrUpdateProfileSwitch(result.first)
                                     persistenceLayer.createOrUpdateTherapyEvent(result.second)
-
-                                    rxBus.post(app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged())
+                                    rxBus.post(EventProfileSwitchChanged())
 
                                     activity?.runOnUiThread {
-                                        android.widget.Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", android.widget.Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", Toast.LENGTH_SHORT).show()
                                     }
                                 } catch (e: Exception) {
                                     e.printStackTrace()
@@ -214,20 +215,13 @@ class ActionsFragment : DaggerFragment() {
                             }.start()
                         }
                     } else {
-                        android.widget.Toast.makeText(context, "Профиль не загружен", android.widget.Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Профиль не загружен", Toast.LENGTH_SHORT).show()
                     }
                 }
                 dialog.show(childFragmentManager, "ExternalBasalDialog")
             }
         }
-        // ----------------------------------------------------
-        }
-        binding.announcement.setOnClickListener {
-            uiInteraction.runCareDialog(childFragmentManager, UiInteraction.EventType.ANNOUNCEMENT, app.aaps.core.ui.R.string.careportal_announcement)
-        }
-        binding.siteRotation.setOnClickListener {
-            uiInteraction.runSiteRotationDialog(childFragmentManager)
-        }
+        // =========================================================================
 
         preferences.put(BooleanNonKey.ObjectivesActionsUsed, true)
     }
@@ -320,8 +314,8 @@ class ActionsFragment : DaggerFragment() {
         binding.tddStats.visibility = pump.pumpDescription.supportsTDDs.toVisibility()
         val isPatchPump = pump.pumpDescription.isPatchPump
         binding.status.apply {
-            cannulaOrPatch.text = if (cannulaOrPatch.text.isEmpty()) "" else if (isPatchPump) rh.gs(app.aaps.core.ui.R.string.patch_pump) else rh.gs(app.aaps.core.ui.R.string.cannula)
-            val imageResource = if (isPatchPump) app.aaps.core.objects.R.drawable.ic_patch_pump_outline else app.aaps.core.ui.R.drawable.ic_cp_age_cannula
+            cannulaOrPatch.text = if (cannulaOrPatch.text.isEmpty()) "" else if (isPatchPump) rh.gs(R.string.patch_pump) else rh.gs(R.string.cannula)
+            val imageResource = if (isPatchPump) app.aaps.core.objects.R.drawable.ic_patch_pump_outline else R.drawable.ic_cp_age_cannula
             cannulaOrPatch.setCompoundDrawablesWithIntrinsicBounds(imageResource, 0, 0, 0)
             batteryLayout.visibility = (!isPatchPump || pump.pumpDescription.useHardwareLink).toVisibility()
 
@@ -331,7 +325,7 @@ class ActionsFragment : DaggerFragment() {
                     reservoirLevel, sensorAge, sensorLevel,
                     pbAge, pbLevel
                 )
-                sensorLevelLabel.text = if (activeBgSource.sensorBatteryLevel == -1) "" else rh.gs(app.aaps.core.ui.R.string.level_label)
+                sensorLevelLabel.text = if (activeBgSource.sensorBatteryLevel == -1) "" else rh.gs(R.string.level_label)
             } else {
                 statusLightHandler.updateStatusLights(cannulaAge, cannulaUsage, insulinAge, null, sensorAge, null, pbAge, null)
                 sensorLevelLabel.text = ""
