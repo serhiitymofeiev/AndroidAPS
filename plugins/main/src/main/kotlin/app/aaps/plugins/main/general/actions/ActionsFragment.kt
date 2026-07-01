@@ -7,6 +7,11 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.LinearLayout
 import android.widget.Toast
+import android.widget.EditText
+import android.widget.Spinner
+import android.widget.ArrayAdapter
+import android.widget.Button
+import android.app.AlertDialog
 import androidx.core.content.ContextCompat
 import app.aaps.core.data.model.RM
 import app.aaps.core.data.ue.Action
@@ -55,104 +60,6 @@ import javax.inject.Inject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
-import java.util.Date
-import app.aaps.database.entities.ProfileSwitch
-import app.aaps.database.entities.TherapyEvent
-
-// ==========================================
-// ЛОГИКА UNTETHERED ВШИТА ПРЯМО В ФРАГМЕНТ
-// ==========================================
-enum class LongInsulinType(val displayName: String) {
-    FLAT("Линейный (Идеальный)"),
-    TOUJEO("Toujeo (Тожео)"),
-    LEVEMIR("Levemir (Левемир)"),
-    LANTUS("Lantus (Лантус)")
-}
-
-object InlineExternalBasalManager {
-    fun getCurve(type: LongInsulinType): DoubleArray {
-        return when (type) {
-            LongInsulinType.FLAT -> DoubleArray(24) { 1.0 / 24.0 }
-            LongInsulinType.TOUJEO -> doubleArrayOf(
-                0.015, 0.020, 0.025, 0.030, 0.035,
-                0.040, 0.045, 0.050, 0.050, 0.050,
-                0.050, 0.055, 0.055, 0.055, 0.050,
-                0.050, 0.045, 0.045, 0.040, 0.040,
-                0.040, 0.035, 0.035, 0.030
-            )
-            LongInsulinType.LEVEMIR -> doubleArrayOf(
-                0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.12, 0.10,
-                0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01,
-                0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
-            )
-            LongInsulinType.LANTUS -> doubleArrayOf(
-                0.02, 0.03, 0.04, 0.04, 0.05, 0.05, 0.05, 0.05,
-                0.05, 0.05, 0.05, 0.05, 0.04, 0.04, 0.04, 0.04,
-                0.04, 0.04, 0.03, 0.03, 0.03, 0.03, 0.03, 0.02
-            )
-        }
-    }
-
-    fun createUntetheredProfileSwitch(dose: Double, insulinType: LongInsulinType, currentProfileJson: String): Pair<ProfileSwitch, TherapyEvent>? {
-        try {
-            val curve = getCurve(insulinType)
-            val profileJson = JSONObject(currentProfileJson)
-            val storeObject = profileJson.getJSONObject("store")
-            val defaultProfileName = profileJson.getString("defaultProfile")
-            val specificProfile = storeObject.getJSONObject(defaultProfileName)
-            val originalBasals = specificProfile.getJSONArray("basal")
-
-            val newBasals = JSONArray()
-            val injectionHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
-
-            for (clockHour in 0..23) {
-                val timeAsSeconds = clockHour * 3600L
-                var originalRate = 0.0
-                for (i in 0 until originalBasals.length()) {
-                    val basalObj = originalBasals.getJSONObject(i)
-                    if (basalObj.getLong("timeAsSeconds") <= timeAsSeconds) {
-                        originalRate = basalObj.getDouble("value")
-                    } else {
-                        break
-                    }
-                }
-                
-                val actionHour = (clockHour - injectionHour + 24) % 24
-                val rateToSubtract = dose * curve[actionHour]
-                val newRate = Math.max(0.0, originalRate - rateToSubtract)
-                
-                val newBasalObj = JSONObject()
-                newBasalObj.put("time", String.format("%02d:00", clockHour))
-                newBasalObj.put("timeAsSeconds", timeAsSeconds)
-                newBasalObj.put("value", Math.round(newRate * 1000.0) / 1000.0)
-                newBasals.put(newBasalObj)
-            }
-
-            specificProfile.put("basal", newBasals)
-
-            val profileSwitch = ProfileSwitch().apply {
-                this.created_at = Date()
-                this.duration = 24 * 60
-                this.profilePlugin = "LocalProfile"
-                this.profileJson = profileJson.toString()
-                this.profileName = "Untethered (${insulinType.displayName})"
-                this.percentage = 100
-            }
-
-            val therapyEvent = TherapyEvent().apply {
-                this.created_at = Date()
-                this.notes = "Внешний базал: $dose ЕД. Тип: ${insulinType.displayName}"
-                this.eventType = 0
-            }
-
-            return Pair(profileSwitch, therapyEvent)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return null
-        }
-    }
-}
-// ==========================================
 
 class ActionsFragment : DaggerFragment() {
 
@@ -285,51 +192,112 @@ class ActionsFragment : DaggerFragment() {
         }
 
         // =========================================================================
-        // ПЕРЕХВАТ КНОПКИ "ВОПРОС"
+        // ПЕРЕХВАТ КНОПКИ "ВОПРОС" ПОД ВНЕШНИЙ БАЗАЛ 
+        // Без использования БД - применяем через штатный механизм AAPS
         // =========================================================================
         binding.question.apply {
             text = "Длинный\nинсулин"
+            setCompoundDrawablesWithIntrinsicBounds(0, app.aaps.core.ui.R.drawable.ic_bolus, 0, 0)
             
             setOnClickListener {
-                // Вызываем диалог ExternalBasalDialog, который вы создали ранее
-                val dialog = ExternalBasalDialog { dose, insulinType ->
-                    val currentProfile = profileFunction.getProfile()
-                    if (currentProfile != null) {
-                        
-                        // Парсим профиль AAPS (json)
-                        val profileJsonString = try {
-                            currentProfile.getData().toString()
-                        } catch (e: Exception) {
-                            "{}"
-                        }
-                        
-                        val result = InlineExternalBasalManager.createUntetheredProfileSwitch(
-                            dose, insulinType, profileJsonString
-                        )
-
-                        if (result != null) {
-                            Thread {
-                                try {
-                                    // Сохраняем в БД через AppDatabase (AAPS 3.2+ pattern)
-                                    app.aaps.database.AppDatabase.getDb(requireContext()).profileSwitchDao().insert(result.first)
-                                    app.aaps.database.AppDatabase.getDb(requireContext()).therapyEventDao().insert(result.second)
-
-                                    // Оповещаем алгоритм (через RxBus с полным пакетом)
-                                    rxBus.post(app.aaps.core.interfaces.rx.events.EventProfileSwitchChanged())
-
-                                    activity?.runOnUiThread {
-                                        Toast.makeText(context, "Внешний профиль ${insulinType.displayName} применен", Toast.LENGTH_SHORT).show()
-                                    }
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }.start()
-                        }
-                    } else {
-                        Toast.makeText(context, "Профиль не загружен", Toast.LENGTH_SHORT).show()
-                    }
+                val context = context ?: return@setOnClickListener
+                
+                val layout = LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(50, 40, 50, 10)
                 }
-                dialog.show(childFragmentManager, "ExternalBasalDialog")
+
+                val doseInput = EditText(context).apply {
+                    hint = "Доза длинного (ЕД)"
+                    inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+                }
+                
+                val types = arrayOf("Линейный (24ч)", "Тожео (24ч)", "Левемир (24ч)", "Лантус (24ч)")
+                val spinner = Spinner(context).apply {
+                    adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, types)
+                    setSelection(1) // Тожео по умолчанию
+                }
+
+                layout.addView(doseInput)
+                layout.addView(spinner)
+
+                AlertDialog.Builder(context)
+                    .setTitle("Учет внешнего базала")
+                    .setView(layout)
+                    .setPositiveButton("Применить") { _, _ ->
+                        val doseStr = doseInput.text.toString()
+                        if (doseStr.isEmpty()) return@setPositiveButton
+                        
+                        val dose = doseStr.toDoubleOrNull() ?: 0.0
+                        if (dose <= 0) return@setPositiveButton
+
+                        val profilePlugin = activePlugin.activeProfileSource
+                        val currentProfile = profilePlugin.profile
+                        
+                        if (currentProfile == null) {
+                            Toast.makeText(context, "Профиль не загружен", Toast.LENGTH_SHORT).show()
+                            return@setPositiveButton
+                        }
+
+                        try {
+                            val curve = when (spinner.selectedItemPosition) {
+                                0 -> DoubleArray(24) { 1.0 / 24.0 }
+                                1 -> doubleArrayOf(0.015, 0.020, 0.025, 0.030, 0.035, 0.040, 0.045, 0.050, 0.050, 0.050, 0.050, 0.055, 0.055, 0.055, 0.050, 0.050, 0.045, 0.045, 0.040, 0.040, 0.040, 0.035, 0.035, 0.030)
+                                2 -> doubleArrayOf(0.02, 0.04, 0.06, 0.08, 0.10, 0.12, 0.12, 0.10, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.02, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+                                else -> doubleArrayOf(0.02, 0.03, 0.04, 0.04, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.03, 0.03, 0.03, 0.03, 0.03, 0.02)
+                            }
+
+                            val profileJson = JSONObject(currentProfile.getData().toString())
+                            val storeObject = profileJson.getJSONObject("store")
+                            val defaultProfileName = profileJson.getString("defaultProfile")
+                            val specificProfile = storeObject.getJSONObject(defaultProfileName)
+                            val originalBasals = specificProfile.getJSONArray("basal")
+
+                            val newBasals = JSONArray()
+                            val injectionHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+
+                            for (clockHour in 0..23) {
+                                val timeAsSeconds = clockHour * 3600L
+                                var originalRate = 0.0
+                                for (i in 0 until originalBasals.length()) {
+                                    val basalObj = originalBasals.getJSONObject(i)
+                                    if (basalObj.getLong("timeAsSeconds") <= timeAsSeconds) {
+                                        originalRate = basalObj.getDouble("value")
+                                    } else {
+                                        break
+                                    }
+                                }
+                                
+                                val actionHour = (clockHour - injectionHour + 24) % 24
+                                val rateToSubtract = dose * curve[actionHour]
+                                val newRate = Math.max(0.0, originalRate - rateToSubtract)
+                                
+                                val newBasalObj = JSONObject()
+                                newBasalObj.put("time", String.format("%02d:00", clockHour))
+                                newBasalObj.put("timeAsSeconds", timeAsSeconds)
+                                newBasalObj.put("value", Math.round(newRate * 1000.0) / 1000.0)
+                                newBasals.put(newBasalObj)
+                            }
+
+                            specificProfile.put("basal", newBasals)
+                            
+                            // Мы не лезем в базу данных сами, а просим AAPS переключить профиль
+                            profileFunction.switchProfileAndTarget(
+                                "LocalProfile", 
+                                profileJson.toString(), 
+                                100, 
+                                24 * 60, 
+                                "Untethered (-$dose ЕД)"
+                            )
+                            
+                            Toast.makeText(context, "Внешний профиль применен!", Toast.LENGTH_LONG).show()
+
+                        } catch (e: Exception) {
+                            Toast.makeText(context, "Ошибка профиля", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    .setNegativeButton("Отмена", null)
+                    .show()
             }
         }
         // =========================================================================
