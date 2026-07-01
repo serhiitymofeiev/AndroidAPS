@@ -10,7 +10,6 @@ on:
         type: choice
         options:
           # ── 3.4.x (JDK 21) ──────────────────────────────
-          - 3.4.2.4
           - 3.4.2.3
           - 3.4.2.2
           - 3.4.2.1
@@ -192,11 +191,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Fetch selected tag from upstream
-        run: |
-          git remote add upstream https://github.com/nightscout/AndroidAPS.git || true
-          git fetch upstream refs/tags/${{ github.event.inputs.tagName }}:refs/tags/${{ github.event.inputs.tagName }}
-          echo "✅ Tag ${{ github.event.inputs.tagName }} fetched from upstream."
+      #- name: Fetch selected tag from upstream
+        #run: |
+          #git remote add upstream https://github.com/nightscout/AndroidAPS.git || true
+          #git fetch upstream refs/tags/${{ github.event.inputs.tagName }}:refs/tags/${{ github.event.inputs.tagName }}
+          #echo "✅ Tag ${{ github.event.inputs.tagName }} fetched from upstream."
 
       - name: Determine JVM version from tag
         run: |
