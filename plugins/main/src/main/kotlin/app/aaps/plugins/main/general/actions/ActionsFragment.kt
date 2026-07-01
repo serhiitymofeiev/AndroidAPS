@@ -10,7 +10,6 @@ import android.widget.Toast
 import android.widget.EditText
 import android.widget.Spinner
 import android.widget.ArrayAdapter
-import android.widget.Button
 import android.app.AlertDialog
 import androidx.core.content.ContextCompat
 import app.aaps.core.data.model.RM
@@ -60,6 +59,16 @@ import javax.inject.Inject
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+
+// ==========================================
+// ЛОГИКА UNTETHERED
+// ==========================================
+enum class LongInsulinType(val displayName: String) {
+    FLAT("Линейный (Идеальный)"),
+    TOUJEO("Toujeo (Тожео)"),
+    LEVEMIR("Levemir (Левемир)"),
+    LANTUS("Lantus (Лантус)")
+}
 
 class ActionsFragment : DaggerFragment() {
 
@@ -192,36 +201,35 @@ class ActionsFragment : DaggerFragment() {
         }
 
         // =========================================================================
-        // ПЕРЕХВАТ КНОПКИ "ВОПРОС" ПОД ВНЕШНИЙ БАЗАЛ 
-        // Без использования БД - применяем через штатный механизм AAPS
+        // ПЕРЕХВАТ КНОПКИ "ВОПРОС" ПОД ВНЕШНИЙ БАЗАЛ
         // =========================================================================
         binding.question.apply {
             text = "Длинный\nинсулин"
-            setCompoundDrawablesWithIntrinsicBounds(0, app.aaps.core.ui.R.drawable.ic_bolus, 0, 0)
-            
+            // Иконку не трогаем, чтобы не было ошибки компиляции
+
             setOnClickListener {
-                val context = context ?: return@setOnClickListener
+                val safeContext = context ?: return@setOnClickListener
                 
-                val layout = LinearLayout(context).apply {
+                val layout = LinearLayout(safeContext).apply {
                     orientation = LinearLayout.VERTICAL
                     setPadding(50, 40, 50, 10)
                 }
 
-                val doseInput = EditText(context).apply {
+                val doseInput = EditText(safeContext).apply {
                     hint = "Доза длинного (ЕД)"
                     inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
                 }
                 
                 val types = arrayOf("Линейный (24ч)", "Тожео (24ч)", "Левемир (24ч)", "Лантус (24ч)")
-                val spinner = Spinner(context).apply {
-                    adapter = ArrayAdapter(context, android.R.layout.simple_spinner_dropdown_item, types)
+                val spinner = Spinner(safeContext).apply {
+                    adapter = ArrayAdapter(safeContext, android.R.layout.simple_spinner_dropdown_item, types)
                     setSelection(1) // Тожео по умолчанию
                 }
 
                 layout.addView(doseInput)
                 layout.addView(spinner)
 
-                AlertDialog.Builder(context)
+                AlertDialog.Builder(safeContext)
                     .setTitle("Учет внешнего базала")
                     .setView(layout)
                     .setPositiveButton("Применить") { _, _ ->
@@ -231,11 +239,9 @@ class ActionsFragment : DaggerFragment() {
                         val dose = doseStr.toDoubleOrNull() ?: 0.0
                         if (dose <= 0) return@setPositiveButton
 
-                        val profilePlugin = activePlugin.activeProfileSource
-                        val currentProfile = profilePlugin.profile
-                        
+                        val currentProfile = profileFunction.getProfile()
                         if (currentProfile == null) {
-                            Toast.makeText(context, "Профиль не загружен", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(safeContext, "Профиль не загружен", Toast.LENGTH_SHORT).show()
                             return@setPositiveButton
                         }
 
@@ -247,7 +253,8 @@ class ActionsFragment : DaggerFragment() {
                                 else -> doubleArrayOf(0.02, 0.03, 0.04, 0.04, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05, 0.04, 0.04, 0.04, 0.04, 0.04, 0.04, 0.03, 0.03, 0.03, 0.03, 0.03, 0.02)
                             }
 
-                            val profileJson = JSONObject(currentProfile.getData().toString())
+                            val profileJsonString = currentProfile.getData().toString()
+                            val profileJson = JSONObject(profileJsonString)
                             val storeObject = profileJson.getJSONObject("store")
                             val defaultProfileName = profileJson.getString("defaultProfile")
                             val specificProfile = storeObject.getJSONObject(defaultProfileName)
@@ -281,19 +288,20 @@ class ActionsFragment : DaggerFragment() {
 
                             specificProfile.put("basal", newBasals)
                             
-                            // Мы не лезем в базу данных сами, а просим AAPS переключить профиль
-                            profileFunction.switchProfileAndTarget(
-                                "LocalProfile", 
-                                profileJson.toString(), 
-                                100, 
-                                24 * 60, 
-                                "Untethered (-$dose ЕД)"
-                            )
+                            // Самый универсальный способ для AndroidAPS: отправляем Intent на смену профиля
+                            // Это равносильно тому, как если бы пользователь сам заполнил окно Profile Switch!
+                            val i = Intent("info.nightscout.androidaps.ACTION_PROFILE_SWITCH")
+                            i.putExtra("profilePlugin", "LocalProfile")
+                            i.putExtra("profileName", "Untethered (-$dose ЕД)")
+                            i.putExtra("profileJson", profileJson.toString())
+                            i.putExtra("duration", 24 * 60)
+                            i.putExtra("percentage", 100)
+                            safeContext.sendBroadcast(i)
                             
-                            Toast.makeText(context, "Внешний профиль применен!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(safeContext, "Внешний профиль на 24 часа отправлен!", Toast.LENGTH_LONG).show()
 
                         } catch (e: Exception) {
-                            Toast.makeText(context, "Ошибка профиля", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(safeContext, "Ошибка профиля", Toast.LENGTH_SHORT).show()
                         }
                     }
                     .setNegativeButton("Отмена", null)
